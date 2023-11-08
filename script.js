@@ -1,23 +1,25 @@
 const vertexShaderSource = `
     attribute vec4 aPosition;
+    attribute vec2 aTextureCoord; // Attribute for texture coordinates
     uniform mat4 uModelMatrix;
     uniform mat4 uViewMatrix;
     uniform mat4 uProjectionMatrix;
-    varying vec3 vNormal;
+    varying vec2 vTextureCoord; // Pass texture coordinates to the fragment shader
 
     void main() {
         gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * aPosition;
-        vNormal = normalize(aPosition.xyz);  // Use the position as a surrogate for the normal since it's a cube
+        vTextureCoord = aTextureCoord; // Pass texture coordinates to the fragment shader
     }
 `;
 
 const fragmentShaderSource = `
     precision mediump float;
-    uniform vec4 uColor;
-    varying vec3 vNormal;
+    uniform sampler2D uTexture; // Texture sampler
+    varying vec2 vTextureCoord; // Received texture coordinates from the vertex shader
+
     void main() {
-        float gradient = 0.3 + 0.7 * (1.0 - abs(vNormal.x + vNormal.y + vNormal.z) / 3.0);
-        gl_FragColor = vec4(gradient * uColor.rgb, uColor.a);
+        vec4 texColor = texture2D(uTexture, vTextureCoord);
+        gl_FragColor = texColor;
     }
 `;
 
@@ -89,40 +91,147 @@ gl.uniform4f(uColorLocation, 0.04, 0.6, 1.0, 1.0);
 gl.viewport(0, 0, canvas.width, canvas.height);
 gl.enable(gl.DEPTH_TEST);
 
+// Load and Bind the Texture
+const texture = gl.createTexture();
+const image = new Image();
+image.src = 'texture.png';
+image.onload = () => {
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+};
+
+// Set Uniform for the Texture
+const uTextureLocation = gl.getUniformLocation(shaderProgram, 'uTexture');
+gl.uniform1i(uTextureLocation, 0); // 0 corresponds to TEXTURE0
+
+const textureCoordBuffer = gl.createBuffer();
+
+function createCubeTextureCoordinates() {
+    return [
+        // Front face
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0,
+
+        // Back face
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0,
+
+        // Top face
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0,
+
+        // Bottom face
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0,
+
+        // Right face
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0,
+
+        // Left face
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0,
+    ];
+}
+
 function createCubeVertices(x, y, z, size) {
     const d = size / 2;
     return [
         // Front face
-        x-d, y-d, z+d,  x+d, y-d, z+d,  x+d, y+d, z+d,
-        x-d, y-d, z+d,  x+d, y+d, z+d,  x-d, y+d, z+d,
+        x-d, y-d, z+d,
+        x+d, y-d, z+d,
+        x+d, y+d, z+d,
+        x-d, y-d, z+d,
+        x+d, y+d, z+d,
+        x-d, y+d, z+d,
 
         // Back face
-        x-d, y-d, z-d,  x+d, y-d, z-d,  x+d, y+d, z-d,
-        x-d, y-d, z-d,  x+d, y+d, z-d,  x-d, y+d, z-d,
+        x-d, y-d, z-d,
+        x+d, y-d, z-d,
+        x+d, y+d, z-d,
+        x-d, y-d, z-d,
+        x+d, y+d, z-d,
+        x-d, y+d, z-d,
 
         // Top face
-        x-d, y+d, z+d,  x+d, y+d, z+d,  x+d, y+d, z-d,
-        x-d, y+d, z+d,  x+d, y+d, z-d,  x-d, y+d, z-d,
+        x-d, y+d, z+d,
+        x+d, y+d, z+d,
+        x+d, y+d, z-d,
+        x-d, y+d, z+d,
+        x+d, y+d, z-d,
+        x-d, y+d, z-d,
 
         // Bottom face
-        x-d, y-d, z+d,  x+d, y-d, z+d,  x+d, y-d, z-d,
-        x-d, y-d, z+d,  x+d, y-d, z-d,  x-d, y-d, z-d,
+        x-d, y-d, z+d,
+        x+d, y-d, z+d,
+        x+d, y-d, z-d,
+        x-d, y-d, z+d,
+        x+d, y-d, z-d,
+        x-d, y-d, z-d,
 
         // Right face
-        x+d, y-d, z+d,  x+d, y-d, z-d,  x+d, y+d, z-d,
-        x+d, y-d, z+d,  x+d, y+d, z-d,  x+d, y+d, z+d,
+        x+d, y-d, z+d,
+        x+d, y-d, z-d,
+        x+d, y+d, z-d,
+        x+d, y-d, z+d,
+        x+d, y+d, z-d,
+        x+d, y+d, z+d,
 
         // Left face
-        x-d, y-d, z+d,  x-d, y-d, z-d,  x-d, y+d, z-d,
-        x-d, y-d, z+d,  x-d, y+d, z-d,  x-d, y+d, z+d
+        x-d, y-d, z+d,
+        x-d, y-d, z-d,
+        x-d, y+d, z-d,
+        x-d, y-d, z+d,
+        x-d, y+d, z-d,
+        x-d, y+d, z+d
     ];
 }
 
+
 function drawCube(vertices) {
+    const textureCoordinates = createCubeTextureCoordinates();
+
+    gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-    gl.vertexAttribPointer(positionAttributeLocation, 3, gl.FLOAT, false, 0, 0);
+
+    // Enable the position attribute
     gl.enableVertexAttribArray(positionAttributeLocation);
+    gl.vertexAttribPointer(positionAttributeLocation, 3, gl.FLOAT, false, 0, 0);
+
+    // Enable the texture coordinate attribute
+    const textureCoordAttributeLocation = gl.getAttribLocation(shaderProgram, "aTextureCoord");
+    gl.enableVertexAttribArray(textureCoordAttributeLocation);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
+    gl.vertexAttribPointer(textureCoordAttributeLocation, 2, gl.FLOAT, false, 0, 0); 
 
     // Extract the coordinates of the front bottom left vertex
     const x1 = Math.round(vertices[0] * 10000) / 10000;
@@ -139,26 +248,25 @@ function drawCube(vertices) {
     const centerY = (y1 + y2) / 2;
     const centerZ = (z1 + z2) / 2;
 
-    // Reset the model matrix to identity    
+    
     mat4.identity(modelMatrix);  
-
-    // Transformations 
     mat4.scale(modelMatrix, modelMatrix, [state.canvasScale, state.canvasScale, state.canvasScale]);
     mat4.multiply(modelMatrix, state.canvasRotationMatrix, modelMatrix);
     mat4.translate(modelMatrix, modelMatrix, [centerX, centerY, centerZ]);
     mat4.rotateX(modelMatrix, modelMatrix, state.xRotationAngle);
     mat4.rotateY(modelMatrix, modelMatrix, state.yRotationAngle);
     mat4.rotateZ(modelMatrix, modelMatrix, state.zRotationAngle);
-    mat4.translate(modelMatrix, modelMatrix, [-centerX, -centerY, -centerZ]);    
+    mat4.translate(modelMatrix, modelMatrix, [-centerX, -centerY, -centerZ]);
 
     // Send matrices to the GPU
     gl.uniformMatrix4fv(uModelMatrixLocation, false, modelMatrix);
     gl.uniformMatrix4fv(uViewMatrixLocation, false, viewMatrix);
     gl.uniformMatrix4fv(uProjectionMatrixLocation, false, projectionMatrix);
 
-    // Draw the cube
+    // Draw the cube as triangles
     gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 3);
 }
+
 
 function drawCarpet(x, y, size, iterations) {
     const newSize = size / 3;
@@ -168,7 +276,7 @@ function drawCarpet(x, y, size, iterations) {
             const newX = x + i * newSize;
             const newY = y + j * newSize;
 
-            // If it's the center square
+            
             if (i === 1 && j === 1) {
                 // Draw the center cube
                 const vertices = createCubeVertices(newX + newSize/2, newY + newSize/2, newSize/2, newSize);
@@ -201,7 +309,7 @@ function animate() {
 function onSliderClick(event) {
     event.stopPropagation();
     document.getElementById('numSteps').innerHTML = slider.value;
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black
+    gl.clearColor(0.0, 0.0, 0.0, 1.0); 
     gl.clear(gl.COLOR_BUFFER_BIT);
     drawCarpet(-1, -1, state.canvasSize, slider.value);
     event.stopPropagation();
@@ -248,9 +356,10 @@ function handleMouseMove(event) {
 }
 
 function onCanvasWheel(event) {
-    event.preventDefault();  // Prevent the default scrolling behavior
+    // Prevent the default scrolling behavior
+    event.preventDefault();  
 
-    const zoomSensitivity = 0.1;  // Adjust this value based on how fast you want to zoom
+    const zoomSensitivity = 0.1;  
 
     // Update the canvas's scale based on the scroll direction
     if (event.deltaY > 0) {
